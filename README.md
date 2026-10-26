@@ -1,5 +1,7 @@
 # flaky-repro
 
+[🇮🇷 توضیحات فارسی](README-fa.md)
+
 **Fail on demand, then prove the fix.** An Agent Skill + deterministic
 checker for flaky tests — the kind that pass locally, fail in CI, and
 get "fixed" by an agent that ran them twice and saw green.
