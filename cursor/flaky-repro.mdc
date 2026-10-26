@@ -1,0 +1,49 @@
+---
+description: Reproduce a flaky or intermittent test failure on demand with a recorded seed and replay command before fixing it, then prove the fix with a deterministic seeded stress run. Apply whenever a test "sometimes fails", "passes locally but fails in CI", or a previous fix was reported after only a couple of green runs.
+globs: "**/test_*.{py,js,ts,go}", "**/*_test.{py,js,ts,go}", "**/*.test.{js,ts}"
+alwaysApply: false
+---
+
+# Flaky-test reproduction — fail on demand, then prove the fix
+
+## The contract
+
+1. **Reproduce first.** Before touching any code, run the checker until it
+   produces a failing seed and an exact replay command:
+
+   ```bash
+   python3 scripts/flaky_check.py <test-target> [--runs N] [--seed S]
+   ```
+
+   If it cannot reproduce the failure in N runs, do NOT claim the test is
+   fixed — report "could not reproduce in N runs" and increase N or widen
+   the target. A test you cannot fail on demand is a test you cannot prove
+   fixed.
+2. **Record the evidence.** The checker writes `flaky-report.md`: target,
+   runner, runs, seeds tried, first failing seed + replay command, failure
+   rate, classification hint. The replay command must fail when run by
+   hand. If it does not, the reproduction is invalid.
+3. **Classify before fixing:** order-dependent (passes alone, fails in the
+   suite — isolate state, never reorder into a "lucky" order) · timing
+   (fails alone too — fix the race / wait condition, never lengthen a
+   timeout) · shared state / external (isolate the resource) ·
+   consistently failing (not flaky — fix it normally).
+4. **Forbidden fixes:** retries, `sleep()` to make a race "go away",
+   skipping (`t.Skip`, `@pytest.mark.skip`, `test.skip`), longer timeouts,
+   quarantining the test without a tracking issue.
+5. **Prove the fix.** Run the *same* checker invocation that reproduced
+   the failure. It must exit 0 over the full run count before reporting
+   done. Required runs follow the measured failure rate (≈ 5 / rate: a
+   1-in-50 flake needs ~250 runs; a 1-in-1,000 flake needs ~5,000). Two
+   green runs prove nothing.
+
+## Tool
+
+`skills/flaky-repro/scripts/flaky_check.py` — zero-dependency, stdlib
+only. Detects pytest / Go / Jest / Vitest and seeds each correctly
+(`PYTHONHASHSEED`, `go test -shuffle=on`, `jest --randomize --seed`,
+`vitest --sequence.seed`). Exit codes: 0 = all runs passed · 1 = failure
+reproduced · 2 = no runner detected (never guess a command — pass `--cmd`).
+
+See `skills/flaky-repro/SKILL.md` for the full contract and
+`references/classification.md` for the run-count math.
